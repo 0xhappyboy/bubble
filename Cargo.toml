@@ -10,5 +10,8 @@ readme = "README.md"
 repository = "https://github.com/0xhappyboy/bubble"
 
 
-[dependencies]
+[dev-dependencies]
 bubble-macro = { path = "./bubble-macro" }
+
+[dependencies]
+bubble-macro = "0.1.2"

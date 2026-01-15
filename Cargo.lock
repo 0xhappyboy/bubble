@@ -12,6 +12,8 @@ dependencies = [
 [[package]]
 name = "bubble-macro"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f07734faf2b4ab9660754793f2c6f3936a5d7ceafc1c04f26fd9610bad300ab9"
 dependencies = [
  "proc-macro2",
  "quote",
