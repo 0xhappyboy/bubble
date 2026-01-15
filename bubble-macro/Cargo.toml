@@ -1,6 +1,6 @@
 [package]
 name = "bubble-macro"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "Includes all macros of the bubble framework"
@@ -16,3 +16,5 @@ proc-macro = true
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
+serde_json = "1.0.149"
+serde = { version = "1.0.228", features = ["derive"] }
