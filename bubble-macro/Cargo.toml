@@ -1,6 +1,6 @@
 [package]
 name = "bubble-macro"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["happyboy <superhappyboy1995@gmail.com>"]
 description = "Includes all macros of the bubble framework"
