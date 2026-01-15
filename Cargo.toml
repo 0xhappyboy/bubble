@@ -1,0 +1,14 @@
+[package]
+name = "bubble"
+version = "0.1.0"
+edition = "2024"
+authors = ["happyboy <superhappyboy1995@gmail.com>"]
+description = "Enterprise-level development framework."
+keywords = ["bubble", "macro"]
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/0xhappyboy/bubble"
+
+
+[dependencies]
+bubble-macro = { path = "./bubble-macro" }
