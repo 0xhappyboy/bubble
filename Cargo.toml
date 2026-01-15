@@ -9,6 +9,10 @@ license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/0xhappyboy/bubble"
 
+# [dependencies]
+# bubble-db = "0.1.0"
+# bubble-macro = "0.1.2"
+
 [dependencies]
-bubble-macro = "0.1.2"
 bubble-db = { path = "./bubble-db" }
+bubble-macro = { path = "./bubble-macro" }
