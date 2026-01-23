@@ -342,7 +342,7 @@ dependencies = [
 
 [[package]]
 name = "bubble-macro"
-version = "0.1.2"
+version = "0.1.5"
 dependencies = [
  "bubble-db",
  "env_logger",
