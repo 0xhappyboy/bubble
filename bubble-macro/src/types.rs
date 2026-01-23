@@ -192,3 +192,6 @@ pub trait Middleware: Send + Sync {
     /// Process response after handler
     fn post_process(&self, response: &mut Response) -> Result<(), Error>;
 }
+
+/// Database result type alias
+pub type DbResult<T> = Result<T, String>;
