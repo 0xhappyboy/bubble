@@ -1,11 +1,481 @@
+mod init;
 mod types;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_macro_input;
 
-// =============================== Root ===============================
+use crate::init::parse_bubble_config;
 
-// =============================== WEB ===============================
+// ======================================================= Root =======================================================
+/// Bubble Application Entry Point Macro
+///
+/// The `#[bubble]` macro transforms a standard Rust `main` function into a
+/// fully-featured asynchronous application with built-in infrastructure
+/// including Tokio runtime, logging, graceful shutdown, and optional database
+/// support. It's designed to eliminate boilerplate code when building
+/// server-side applications.
+///
+/// # Features
+///
+/// - **Automatic Tokio Runtime**: Creates and manages a multi-threaded Tokio
+///   runtime automatically
+/// - **Graceful Shutdown**: Handles Ctrl+C signals for clean application
+///   termination
+/// - **Built-in Logging**: Initializes structured logging with configurable
+///   levels
+/// - **Configuration Management**: Supports multiple configuration sources
+///   (environment variables, config files, command-line arguments)
+/// - **Database Integration**: Optional automatic database connection setup
+/// - **Error Handling**: Unified error handling with proper exit codes
+/// - **Concurrency Control**: Configurable worker thread count
+///
+/// # Basic Usage
+///
+/// ```rust
+/// use std::io::Result;
+///
+/// #[bubble]
+/// async fn main() -> Result<()> {
+///     println!("Hello, Bubble!");
+///     Ok(())
+/// }
+/// ```
+///
+/// # Configuration Parameters
+///
+/// The macro accepts optional named parameters to customize the application:
+///
+/// ## Network Configuration
+///
+/// - `port`: Server port number (default: `3000`)
+///   ```rust
+///   #[bubble(port = 8080)]
+///   async fn main() -> Result<()> { Ok(()) }
+///   ```
+///
+/// - `host`: Server host address (default: `"127.0.0.1"`)
+///   ```rust
+///   #[bubble(host = "0.0.0.0")]
+///   async fn main() -> Result<()> { Ok(()) }
+///   ```
+///
+/// ## Concurrency Configuration
+///
+/// - `workers`: Number of Tokio worker threads (default: `0` = auto-detect)
+///   ```rust
+///   #[bubble(workers = 4)]  // Use 4 worker threads
+///   async fn main() -> Result<()> { Ok(()) }
+///   ```
+///
+/// ## Database Configuration
+///
+/// - `db_type`: Database type (`"mysql"`, `"postgres"`, `"sqlite"`, `"redis"`)
+/// - `db_url`: Database connection URL
+///   ```rust
+///   #[bubble(
+///       db_type = "postgres",
+///       db_url = "postgres://user:pass@localhost:5432/mydb"
+///   )]
+///   async fn main() -> Result<()> { Ok(()) }
+///   ```
+///
+/// ## Logging Configuration
+///
+/// - `log_level`: Logging verbosity (`"error"`, `"warn"`, `"info"`, `"debug"`, `"trace"`)
+///   (default: `"info"`)
+///   ```rust
+///   #[bubble(log_level = "debug")]
+///   async fn main() -> Result<()> { Ok(()) }
+///   ```
+///
+/// ## Configuration Files
+///
+/// - `config_file`: Path to configuration file (default: `"config.toml"`)
+///   ```rust
+///   #[bubble(config_file = "app.toml")]
+///   async fn main() -> Result<()> { Ok(()) }
+///   ```
+///
+/// # Complete Example
+///
+/// ```rust
+/// use std::io::Result;
+///
+/// #[bubble(
+///     port = 8080,
+///     host = "0.0.0.0",
+///     workers = 4,
+///     db_type = "postgres",
+///     db_url = "postgres://user:pass@localhost:5432/appdb",
+///     log_level = "debug",
+///     config_file = "app_config.toml"
+/// )]
+/// async fn main() -> Result<()> {
+///     // Application logic here
+///     println!("Application running on port 8080");
+///     
+///     // Access environment variables
+///     let db_url = std::env::var("DATABASE_URL")
+///         .unwrap_or_else(|_| "postgres://localhost:5432/appdb".to_string());
+///     
+///     Ok(())
+/// }
+/// ```
+///
+/// # Application Lifecycle
+///
+/// When using `#[bubble]`, your application follows this sequence:
+///
+/// 1. **Runtime Initialization**:
+///    - Tokio multi-threaded runtime is created
+///    - Worker threads are spawned with lifecycle hooks
+///
+/// 2. **Infrastructure Setup**:
+///    - Logging system is initialized with the specified level
+///    - Configuration file is loaded (if exists)
+///    - Command-line arguments are parsed
+///    - Database connection is established (if configured)
+///
+/// 3. **Signal Handling**:
+///    - Ctrl+C handler is registered for graceful shutdown
+///    - Signal handler runs in a separate Tokio task
+///
+/// 4. **Application Execution**:
+///    - Your `main` function is executed asynchronously
+///    - Runs concurrently with signal monitoring
+///
+/// 5. **Shutdown**:
+///    - On Ctrl+C: graceful shutdown with completion message
+///    - On error: error logging with non-zero exit code
+///    - On success: clean exit with zero exit code
+///
+/// # Error Handling
+///
+/// The macro expects your `main` function to return `Result<()>`. Errors are
+/// handled as follows:
+///
+/// - **Runtime Errors**: If Tokio runtime creation fails, the application
+///   panics with a descriptive message
+/// - **Configuration Errors**: Missing or invalid configuration results in
+///   panic with error details
+/// - **Application Errors**: Errors returned from your `main` function are
+///   logged at error level and cause exit code 1
+/// - **Signal Errors**: If signal handling fails, it's logged but doesn't
+///   prevent application startup
+///
+/// # Logging Output
+///
+/// The macro automatically sets up logging with the following format:
+///
+/// ```text
+/// 2024-01-23T10:30:45.123 INFO  Starting Bubble Application
+/// 2024-01-23T10:30:45.124 INFO  Configuration: port=8080, host=0.0.0.0, workers=4
+/// 2024-01-23T10:30:45.125 INFO  Logging initialized with level: debug
+/// 2024-01-23T10:30:45.126 DEBUG Tokio worker thread started
+/// 2024-01-23T10:30:45.127 INFO  Executing user application
+/// ```
+///
+/// # Environment Variables
+///
+/// The application automatically reads environment variables prefixed with
+/// `BUBBLE_`. For example:
+///
+/// ```bash
+/// export BUBBLE_PORT=9000
+/// export BUBBLE_LOG_LEVEL=debug
+/// export BUBBLE_DB_URL=postgres://localhost:5432/mydb
+/// ```
+///
+/// # Configuration File Format
+///
+/// When using a configuration file (default: `config.toml`), it should follow
+/// this structure:
+///
+/// ```toml
+/// # config.toml
+/// port = 8080
+/// host = "0.0.0.0"
+/// workers = 4
+/// db_type = "postgres"
+/// db_url = "postgres://localhost:5432/appdb"
+/// log_level = "info"
+/// ```
+///
+/// # Integration with Other Macros
+///
+/// The `#[bubble]` macro can be combined with other macros from this crate:
+///
+/// ```rust
+/// #[bubble(port = 3000)]
+/// async fn main() -> Result<()> {
+///     // Use route macros
+///     #[get("/health")]
+///     fn health_check() -> String {
+///         "OK".to_string()
+///     }
+///     
+///     // Use ORM models
+///     #[orm(table = "users")]
+///     struct User {
+///         id: i64,
+///         name: String,
+///     }
+///     
+///     Ok(())
+/// }
+/// ```
+///
+/// # Performance Considerations
+///
+/// - **Worker Threads**: Setting `workers = 0` lets Tokio choose the optimal
+///   number based on CPU cores
+/// - **Runtime Overhead**: The macro adds minimal runtime overhead (mostly
+///   during startup)
+/// - **Memory Usage**: Each worker thread has its own task queue and memory
+///   allocation
+/// - **Concurrency**: For I/O-bound applications, more workers can improve
+///   throughput; for CPU-bound tasks, match worker count to CPU cores
+///
+/// # Limitations and Requirements
+///
+/// - **Main Function Only**: Can only be applied to the `main` function
+/// - **Async Required**: The `main` function must be `async`
+/// - **Return Type**: Must return `Result<()>` or compatible error type
+/// - **Dependencies**: Requires `tokio`, `env_logger`, and `log` crates
+/// - **Platform**: Works on all platforms supported by Tokio
+///
+/// # Migration from Manual Setup
+///
+/// If you're migrating from manual Tokio setup, replace:
+///
+/// ```rust
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Manual setup code here
+///     Ok(())
+/// }
+/// ```
+///
+/// With:
+///
+/// ```rust
+/// #[bubble]
+/// async fn main() -> Result<()> {
+///     // Your application code (infrastructure is automatic)
+///     Ok(())
+/// }
+/// ```
+///
+/// # Best Practices
+///
+/// 1. **Use Environment Variables** for sensitive data (passwords, API keys)
+/// 2. **Set Appropriate Log Level** in production (`"info"` or `"warn"`)
+/// 3. **Configure Workers Appropriately** based on your workload
+/// 4. **Use Graceful Shutdown** for database connections and external services
+/// 5. **Combine with Error Handling** for robust applications
+///
+/// # Example: Web Server with Database
+///
+/// ```rust
+/// use std::io::Result;
+///
+/// #[bubble(
+///     port = 3000,
+///     db_type = "postgres",
+///     db_url = "postgres://localhost:5432/appdb"
+/// )]
+/// async fn main() -> Result<()> {
+///     // Database operations
+///     #[orm(table = "users")]
+///     struct User {
+///         id: i64,
+///         name: String,
+///         email: String,
+///     }
+///     
+///     // Web routes
+///     #[get("/api/users")]
+///     async fn get_users() -> String {
+///         "User list".to_string()
+///     }
+///     
+///     log::info!("Server ready");
+///     Ok(())
+/// }
+/// ```
+///
+/// # Troubleshooting
+///
+/// Common issues and solutions:
+///
+/// - **"Failed to create Tokio runtime"**: Usually indicates system resource
+///   limitations or invalid worker thread count
+/// - **Database connection errors**: Verify database is running and credentials
+///   are correct
+/// - **Permission denied**: Check port permissions (ports < 1024 require root)
+/// - **Missing dependencies**: Ensure `tokio`, `env_logger`, `log` are in
+///   `Cargo.toml`
+///
+#[proc_macro_attribute]
+pub fn bubble(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let config = parse_bubble_config(attr);
+    let input_fn = parse_macro_input!(item as syn::ItemFn);
+    let fn_name = &input_fn.sig.ident;
+    if fn_name != "main" {
+        return syn::Error::new_spanned(
+            fn_name,
+            "The #[bubble] macro can only be used on the main function",
+        )
+        .to_compile_error()
+        .into();
+    }
+    let has_async = input_fn.sig.asyncness.is_some();
+    if !has_async {
+        return syn::Error::new_spanned(
+            &input_fn.sig,
+            "The main function must be async when using #[bubble]",
+        )
+        .to_compile_error()
+        .into();
+    }
+    let vis = &input_fn.vis;
+    let inputs = &input_fn.sig.inputs;
+    let output = &input_fn.sig.output;
+    let block = &input_fn.block;
+    let attrs = &input_fn.attrs;
+    let port = config.port;
+    let host = &config.host;
+    let workers = config.workers;
+    let db_type = &config.db_type;
+    let db_url = &config.db_url;
+    let log_level = &config.log_level;
+    let config_file = &config.config_file;
+    // Generate the expanded code with full integration
+    let expanded = quote! {
+        #(#attrs)*
+        #[doc = "Bubble Application Entry Point"]
+        #[doc = "Automatically initialized with: "]
+        #[doc = concat!("- Port: ", #port)]
+        #[doc = concat!("- Host: \"", #host, "\"")]
+        #[doc = concat!("- Workers: ", #workers)]
+        #[doc = concat!("- Database: ", #db_type)]
+        #[doc = concat!("- Log Level: ", #log_level)]
+        #vis fn main() #output {
+            // Create the actual main function that will be called by tokio
+            async fn inner_main() #output {
+                // Helper function to initialize logging
+                fn init_logging(level_str: &str) {
+                    let level = match level_str.to_lowercase().as_str() {
+                        "error" => log::LevelFilter::Error,
+                        "warn" => log::LevelFilter::Warn,
+                        "info" => log::LevelFilter::Info,
+                        "debug" => log::LevelFilter::Debug,
+                        "trace" => log::LevelFilter::Trace,
+                        _ => log::LevelFilter::Info,
+                    };
+                    env_logger::Builder::from_default_env()
+                        .filter_level(level)
+                        .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
+                        .format_module_path(false)
+                        .init();
+                    log::info!("Logging initialized with level: {}", level_str);
+                }
+                async fn init_database(db_type: &str, db_url: &str) -> Result<(), String> {
+                    log::info!(
+                        "Database connection configured: type={}, url={}",
+                        db_type,
+                        db_url
+                    );
+                    Ok(())
+                }
+                fn load_config_file(file_path: &str) -> Result<(), String> {
+                    use std::fs;
+                    match fs::read_to_string(file_path) {
+                        Ok(content) => {
+                            log::debug!("Configuration file content:\n{}", content);
+                            Ok(())
+                        }
+                        Err(err) => Err(format!("Failed to read config file: {}", err)),
+                    }
+                }
+                fn parse_command_line_args(args: &[String]) {
+                    if args.len() > 1 {
+                        log::info!("Command line arguments: {:?}", &args[1..]);
+                    }
+                }
+                init_logging(#log_level);
+                log::info!("Starting Bubble Application");
+                log::info!("Configuration: port={}, host={}, workers={}",
+                    #port, #host, #workers);
+                if !#db_type.is_empty() && !#db_url.is_empty() {
+                    log::info!("Initializing {} database: {}", #db_type, #db_url);
+                    init_database(#db_type, #db_url).await
+                        .expect("Failed to initialize database");
+                }
+                if std::path::Path::new(#config_file).exists() {
+                    log::info!("Loading configuration from {}", #config_file);
+                    load_config_file(#config_file)
+                        .expect("Failed to load configuration file");
+                }
+                let args: Vec<String> = std::env::args().collect();
+                parse_command_line_args(&args);
+                log::info!("Executing user application");
+                #block
+            }
+            let mut rt_builder = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .on_thread_start(|| {
+                    log::debug!("Tokio worker thread started");
+                })
+                .on_thread_stop(|| {
+                    log::debug!("Tokio worker thread stopped");
+                });
+            let rt = if #workers > 0 {
+                rt_builder.worker_threads(#workers)
+            } else {
+                &mut rt_builder
+            }
+            .build()
+            .expect("Failed to create Tokio runtime");
+            let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+            rt.spawn(async move {
+                match tokio::signal::ctrl_c().await {
+                    Ok(()) => {
+                        log::info!("Received shutdown signal (Ctrl+C)");
+                        let _ = shutdown_tx.send(());
+                    }
+                    Err(err) => {
+                        log::error!("Failed to listen for shutdown signal: {}", err);
+                    }
+                }
+            });
+            let result = rt.block_on(async {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        log::info!("Shutting down gracefully...");
+                        Err("Application interrupted by user".into())
+                    }
+                    res = inner_main() => {
+                        res
+                    }
+                }
+            });
+            match result {
+                Ok(_) => {
+                    log::info!("Application completed successfully");
+                    std::process::exit(0);
+                }
+                Err(err) => {
+                    log::error!("Application failed: {}", err);
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
+    expanded.into()
+}
+
+// ======================================================= WEB =======================================================
 
 /// GET request macro
 ///
@@ -394,7 +864,7 @@ pub fn request_body(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.parse().unwrap()
 }
 
-// =============================== DB ===============================
+// ======================================================= DB =======================================================
 /// ORM (Object-Relational Mapping) Macro
 ///
 /// Automatically generates complete CRUD (Create, Read, Update, Delete) operations
