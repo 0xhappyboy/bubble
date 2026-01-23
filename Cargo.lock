@@ -313,37 +313,8 @@ dependencies = [
 name = "bubble"
 version = "0.1.1"
 dependencies = [
- "bubble-db 0.1.0",
+ "bubble-db",
  "bubble-macro",
-]
-
-[[package]]
-name = "bubble-db"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.21.7",
- "bb8",
- "bb8-postgres",
- "bb8-redis",
- "chrono",
- "config",
- "deadpool",
- "futures",
- "mysql",
- "mysql_async",
- "once_cell",
- "postgres",
- "redis 0.23.3",
- "rusqlite",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -380,8 +351,10 @@ dependencies = [
 [[package]]
 name = "bubble-macro"
 version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1baf7713cf3967eb28ba417ab0e564ff8394a3d496137f81bcebf59a020d54e9"
 dependencies = [
- "bubble-db 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bubble-db",
  "env_logger",
  "log",
  "proc-macro2",
