@@ -13,3 +13,38 @@ Enterprise-level development framework.
 <p align="center">
 <a href="./README_zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
 </p>
+
+# Dependencies
+
+```
+                ┌───────────────┐
+                │    bubble     │
+                │  (Main Lib)   │
+                └───────┬───────┘
+                        │ Uses #[orm] macro
+                        ▼
+                ┌───────────────┐
+                │ bubble-macro  │
+                │ (Proc Macro)  │
+                └───────┬───────┘
+                        │ Depends on DatabaseConnection trait
+                        ▼
+                ┌───────────────┐
+                │   bubble-db   │
+                │ (DB Abstraction)│
+                └───────────────┘
+```
+
+## Dependency
+
+```
+bubble → bubble-macro → bubble-db
+```
+
+## Responsibilities:
+
+```
+1. bubble: User-facing library with #[orm] macro usage
+2. bubble-macro: Procedural macro that generates ORM code
+3. bubble-db: Database abstraction layer with drivers
+```

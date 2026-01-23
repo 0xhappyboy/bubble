@@ -13,3 +13,38 @@
 <p align="center">
 <a href="./README_zh-CN.md">简体中文</a> | <a href="./README.md">English</a>
 </p>
+
+# 依赖关系
+
+```
+                ┌───────────────┐
+                │    bubble     │
+                │    (主库)     │
+                └───────┬───────┘
+                        │ 使用 #[orm] 宏
+                        ▼
+                ┌───────────────┐
+                │ bubble-macro  │
+                │  (过程宏库)    │
+                └───────┬───────┘
+                        │ 依赖 DatabaseConnection trait
+                        ▼
+                ┌───────────────┐
+                │   bubble-db   │
+                │ (数据库抽象)   │
+                └───────────────┘
+```
+
+## 依赖
+
+```
+bubble → bubble-macro → bubble-db
+```
+
+## 职责
+
+```
+bubble：面向用户的库，使用 #[orm] 宏
+bubble-macro：生成 ORM 代码的过程宏
+bubble-db：带有驱动程序的数据库抽象层
+```
